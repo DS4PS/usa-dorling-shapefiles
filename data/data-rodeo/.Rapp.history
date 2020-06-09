@@ -1,0 +1,3 @@
+load("/Users/mbpeter4/Desktop/CPP 528/Rstudio_All/cpp-528-spr-2020-group-03/data/data-rodeo/LTDB-META-DATA.rds")
+load("/Users/mbpeter4/Desktop/CPP 528/Rstudio_All/cpp-528-spr-2020-group-03/data/data-rodeo/LTDB-2010.rds")
+load("/Users/mbpeter4/Desktop/CPP 528/Rstudio_All/cpp-528-spr-2020-group-03/data/data-rodeo/LTDB-META-DATA.rds")
