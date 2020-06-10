@@ -90,3 +90,32 @@ seattle_dorling <- cartogram_dorling( x=seattle, weight="pop.w", k=0.05 )
 plot( seattle_dorling )
 ```
 
+```{r}
+crosswalk <- read.csv( "https://raw.githubusercontent.com/DS4PS/cpp-529-master/master/data/cbsatocountycrosswalk.csv",  stringsAsFactors=F, colClasses="character" )
+
+cbsa <- unique( crosswalk$cbsaname )
+cbsa[ cbsa == "" ] <- NA
+
+for( i in cbsa )
+{
+  a.cbsa <- filter( crosswalk, cbsaname == i )
+
+  county.fips <- a.cbsa$fipscounty
+
+  d <- NULL
+
+  for( j in county.fips )
+  {
+     state.fips <- substr( j, 1, 2 )
+     county.fips <- substr( j, 3, 5 )
+     d.sub <- get_acs( state=state.fips, county=county.fips )
+
+     d <- rbind( d, d.sub )
+  }
+
+  # dorling code for d
+}
+
+
+```
+
