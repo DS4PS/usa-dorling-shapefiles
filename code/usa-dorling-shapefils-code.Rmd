@@ -108,14 +108,58 @@ for( i in cbsa )
   {
      state.fips <- substr( j, 1, 2 )
      county.fips <- substr( j, 3, 5 )
-     d.sub <- get_acs( state=state.fips, county=county.fips )
+     d.sub <- get_acs( geography = "tract", variables = "B01003_001", state=state.fips, county=county.fips, geometry = TRUE )
+     
 
      d <- rbind( d, d.sub )
   }
+  
+  
+  
+  for (i in cbsa ) 
+    
+    {
+    
+    # dorling code for d
+census.dat <- readRDS( here("data/data-rodeo/LTDB-2010.rds" ))
 
-  # dorling code for d
-}
+ # merge shapefile data with census data in new dataframe
+metro.area <- merge(d, census.dat, by.x="cbsaname", by.y="fipscounty")
 
+# how do we merge data? crosswalk has fips number by itself, harmonized data has fips-##-####-(fipsnumber)
+
+metro.area <- metro.area[! st_is_empty(metro.area), ]
+metro.area.sp <- as_Spatial(metro.area)
+class(metro.area.sp)
+  
+plot(metro.area.sp)
+
+# project map and remove empty tracts
+metro.area <- spTransform( metro.area.sp, CRS("+init=epsg:3395"))
+metro.area <- metro.area[ metro.area$POP != 0 & (! is.na( metro.area$POP )) , ]
+
+# convert census tract polygons to dorling cartogram
+# no idea why k=0.03 works, but it does - default is k=5
+metro.area$pop.w <- metro.area$POP / 9000 # max(msp.sp$POP)   # standardizes it to max of 1.5
+metro.area_dorling <- cartogram_dorling( x=metro.area, weight="pop.w", k=0.05 )
+plot( metro.area_dorling )
+  }
+
+  
+  for( i in cbsa)
+    
+  {
+    
+    # WRITE TO FILE 
+
+metro.area_dorling <- spTransform( metro.area_dorling, CRS("+proj=longlat +datum=WGS84") )
+metro <- spTransform( metro, CRS("+proj=longlat +datum=WGS84") )
+geojson_write( metro.area_dorling, file="metro.area_dorling.geojson", geometry="polygon" )
+geojson_write( metro, file="metro.geojson", geometry="polygon" )
+
+# how do we have it write individual file names as it loops?    
+  }
+} 
 
 ```
 
