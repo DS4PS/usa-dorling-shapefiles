@@ -49,14 +49,14 @@ build_dorling_metro <- function( cbsa.name )
 	# merge shapefile data with census data in new dataframe
 	d.sf <- merge( d.sf, census.dat, by.x="GEOID", by.y="tractid", all.x=T )
     
-    # save simple features file
-    metro.name <- tolower( cbsa.name )
-    metro.name <- gsub( ",", "", metro.name )
-    metro.name <- gsub( " ", "-", metro.name )
-    file.name <- paste0( "../maps/sf-metros/", metro.name, "-sf.geojson" )
-    write_sf( d.sf, file.name )
+	# save simple features file
+	metro.name <- tolower( cbsa.name )
+	metro.name <- gsub( ",", "", metro.name )
+	metro.name <- gsub( " ", "-", metro.name )
+	file.name <- paste0( "../maps/sf-metros/", metro.name, "-sf.geojson" )
+	write_sf( d.sf, file.name )
 
-    # convert sf to sp class
+	# convert sf to sp class
 	d.sf <- d.sf[ ! st_is_empty( d.sf ) , ]
 	d.sp <- as_Spatial( d.sf )
 
@@ -67,23 +67,21 @@ build_dorling_metro <- function( cbsa.name )
 	d.sp <- spTransform( d.sp, CRS("+init=epsg:3395") )
 	d.sp  <- d.sp[ d.sp$POP != 0 & (! is.na( d.sp$POP )) , ]
 
-    # save basic shapefile with data
-
-
 	# convert census tract polygons to dorling cartogram
 	# no idea why k=0.03 works, but it does - default is k=5
 	# max(msp.sp$POP)   # standardizes it to max of 1.5
 	d.sp$pop.w <- d.sp$POP / 9000 
 	dorling.map <- cartogram_dorling( x=d.sp, weight="pop.w", k=0.05 )
 
-    metro.name <- tolower( cbsa.name )
-    metro.name <- gsub( ",", "", metro.name )
-    metro.name <- gsub( " ", "-", metro.name )
-    file.name <- paste0( "../maps/dorling-metros/", metro.name, "-dorling.geojson" )
-    metro.j <- spTransform( dorling.map, CRS("+proj=longlat +datum=WGS84") )
-    geojson_write( metro.j, file=file.name, geometry="polygon" )
+        # save dorling shapefile as geojson
+	metro.name <- tolower( cbsa.name )
+	metro.name <- gsub( ",", "", metro.name )
+	metro.name <- gsub( " ", "-", metro.name )
+	file.name <- paste0( "../maps/dorling-metros/", metro.name, "-dorling.geojson" )
+	metro.j <- spTransform( dorling.map, CRS("+proj=longlat +datum=WGS84") )
+	geojson_write( metro.j, file=file.name, geometry="polygon" )
 
-    # plot the map 
+	# plot the map 
 	plot( dorling.map, main=paste0("Dorling Cartogram of \n", cbsa.name ) )
 
 	return( dorling.map )
