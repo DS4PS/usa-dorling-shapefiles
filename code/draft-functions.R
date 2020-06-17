@@ -1,4 +1,3 @@
-
 ###############
 
 library( geojsonio )   # read shapefiles
@@ -39,7 +38,7 @@ census.dat$tractid <- as.numeric( as.character( census.dat$tractid ) )
 
 
 
-
+options( tigris_use_cache = TRUE )
 
 build_dorling_metro <- function( cbsa.name )
 {
@@ -68,10 +67,10 @@ build_dorling_metro <- function( cbsa.name )
 	}
 
 
-        # merge shapefile data with census data in new dataframe:
-        # fix leading zeros problem
-        # census.dat$tractid <- as.numeric( as.character( census.dat$tractid ) )
-        d.sf$GEOID <- as.numeric( as.character( d.sf$GEOID ) )
+    # merge shapefile data with census data in new dataframe:
+    # fix leading zeros problem
+    # census.dat$tractid <- as.numeric( as.character( census.dat$tractid ) )
+    d.sf$GEOID <- as.numeric( as.character( d.sf$GEOID ) )
 
 
 	d.sf <- merge( d.sf, census.dat, by.x="GEOID", by.y="tractid", all.x=T )
@@ -81,7 +80,7 @@ build_dorling_metro <- function( cbsa.name )
 	metro.name <- gsub( ",", "", metro.name )
 	metro.name <- gsub( " ", "-", metro.name )
 	file.name <- paste0( "../maps/sf-metros/", metro.name, "-sf.geojson" )
-	write_sf( d.sf, file.name )
+	write_sf( d.sf, file.name, delete_dsn=TRUE )
 
 	# convert sf to sp class
 	d.sf <- d.sf[ ! st_is_empty( d.sf ) , ]
@@ -106,7 +105,7 @@ build_dorling_metro <- function( cbsa.name )
 	metro.name <- gsub( " ", "-", metro.name )
 	file.name <- paste0( "../maps/dorling-metros/", metro.name, "-dorling.geojson" )
 	metro.j <- spTransform( dorling.map, CRS("+proj=longlat +datum=WGS84") )
-	geojson_write( metro.j, file=file.name, geometry="polygon" )
+	geojson_write( metro.j, file=file.name, geometry="polygon", delete_dsn=TRUE )
 
 	# plot the map 
 	plot( dorling.map, main=paste0("Dorling Cartogram of \n", cbsa.name ) )
@@ -121,8 +120,8 @@ build_dorling_metro <- function( cbsa.name )
 # fw <- build_dorling_metro( cbsa.name = fort.worth )
 
 
-URL <- "https://raw.githubusercontent.com/DS4PS/cpp-529-master/master/data/cbsatocountycrosswalk.csv"
-crosswalk <- read.csv( URL, stringsAsFactors=F, colClasses="character" )
+
+crosswalk <- read.csv( "https://raw.githubusercontent.com/DS4PS/cpp-529-master/master/data/cbsatocountycrosswalk.csv",  stringsAsFactors=F, colClasses="character" )
 
 metro.areas <- unique( crosswalk$cbsaname )
 metro.areas[ metro.areas == "" ] <- NA
@@ -137,6 +136,7 @@ for( j in test.metros )
   # plot metro with base layer ? 
 
 }
+
 
 
 
