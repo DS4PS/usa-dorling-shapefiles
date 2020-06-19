@@ -108,9 +108,13 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 	# convert census tract polygons to dorling cartogram
 	# no idea why k=0.03 works, but it does - default is k=5
 	# standardizes pop numbers for scaling
-	d.sp$pop.w <- d.sp$POP / ( 2 * median(d.sp$POP) )  # 9000
-	d.sp <- spTransform( d.sp, CRS("+init=epsg:3395") )
-	dorling.map <- cartogram_dorling( x=d.sp, weight="pop.w", k=0.2 )  # k=0.05
+        
+	d.sp$pop.w <- d.sp$POP / ( 2 * median(d.sp$POP) ) 
+	total.pop <- sum( d.sp$POP, na.rm=T )
+        k.scale <-  1.5 * ( 1 / ( log( total.pop ) - 10 ) ) 
+        
+        d.sp <- spTransform( d.sp, CRS("+init=epsg:3395") )
+	dorling.map <- cartogram_dorling( x=d.sp, weight="pop.w", k=k.scale )  # k=0.05
 
 	# convert to WGS84 for GitHub capatability 
 	metro.j <- spTransform( dorling.map, CRS("+proj=longlat +datum=WGS84") )
