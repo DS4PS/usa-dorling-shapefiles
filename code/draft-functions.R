@@ -60,20 +60,25 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 	state.fips <- substr( these.fips, 1, 2 )
 	county.fips <- substr( these.fips, 3, 5 )
 
+	# combine all counties
 	d.sf <- NULL
 
 	for( i in 1:length(these.fips) )
 	{
-	d.temp <- 
-	get_acs( geography = "tract", 
-	   variables = "B01003_001",  # population
-	   state = state.fips[i], 
-	   county = county.fips[i], 
-	   geometry = TRUE ) %>%
-	select( GEOID, estimate ) %>%
-	rename( POP = estimate )
+	   try(  
 
-	d.sf <- rbind( d.sf, d.temp )
+                d.temp <- 
+	        get_acs( geography = "tract", 
+	           variables = "B01003_001",  # population
+	           state = state.fips[i], 
+	           county = county.fips[i], 
+	           geometry = TRUE ) %>%
+	        select( GEOID, estimate ) %>%
+	        rename( POP = estimate )
+		   
+           ) # end of try
+
+	   d.sf <- rbind( d.sf, d.temp )
 	}
 
 
