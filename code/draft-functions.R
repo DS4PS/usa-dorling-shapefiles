@@ -108,7 +108,7 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 	# standardizes pop numbers for scaling
 	d.sp$pop.w <- d.sp$POP / ( 2 * median(d.sp$POP) ) 
 	total.pop <- sum( d.sp$POP, na.rm=T )
-        k.scale <-  1.5 * ( 1 / ( log( total.pop ) - 10 ) ) 
+        k.scale <-  0.7 * ( 1 / ( log( total.pop ) - 10 ) ) 
         
 	# convert census tract polygons to dorling cartogram
         d.sp <- spTransform( d.sp, CRS("+init=epsg:3395") )
@@ -130,7 +130,8 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 	{
 	  par( mar=c(0,0,4,0), mfrow=c(1,2) )
 	  plot( d.sp, main=paste0("Census Tracts of \n", cbsa.name ) )
-	  plot( dorling.map, main=paste0("Dorling Cartogram of \n", cbsa.name ) )
+          plot( d.sp, border="gray80", main=paste0("Dorling Cartogram of \n", cbsa.name ) )
+	  plot( dorling.map, col=gray(0.5,0.5), add=TRUE  )
 	}
 
 	return( dorling.map )
