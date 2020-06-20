@@ -101,7 +101,7 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 	metro.name <- gsub( ",", "", metro.name )
 	metro.name <- gsub( " ", "-", metro.name )
 	file.name <- paste0( "../maps/metros-shapefile/", metro.name, "-sf.geojson" )
-	geojson_write( d.sp, file=file.name, geometry="polygon", delete_dsn=TRUE )
+	geojson_write( d.sp, file=file.name, geometry="polygon" )
 
 	# class( d.sp )
 	# plot( d.sp)
