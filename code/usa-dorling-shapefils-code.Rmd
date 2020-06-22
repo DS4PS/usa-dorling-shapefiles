@@ -91,6 +91,20 @@ plot( seattle_dorling )
 ```
 
 ```{r}
+tmap_mode("plot")
+data(seattle.sp)
+tm_shape(seattle.sp )
+
+
+tmap_mode("plot")
+data(seattle_dorling)
+tm_shape(seattle_dorling)
+
+```
+
+
+
+```{r}
 crosswalk <- read.csv( "https://raw.githubusercontent.com/DS4PS/cpp-529-master/master/data/cbsatocountycrosswalk.csv",  stringsAsFactors=F, colClasses="character" )
 
 cbsa <- unique( crosswalk$cbsaname )
