@@ -90,18 +90,6 @@ seattle_dorling <- cartogram_dorling( x=seattle, weight="pop.w", k=0.05 )
 plot( seattle_dorling )
 ```
 
-```{r}
-tmap_mode("plot")
-data(seattle.sp)
-tm_shape(seattle.sp )
-
-
-tmap_mode("plot")
-data(seattle_dorling)
-tm_shape(seattle_dorling)
-
-```
-
 
 
 ```{r}
