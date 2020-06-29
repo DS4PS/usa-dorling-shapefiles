@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set( echo = TRUE, message=F, warning=F )
 ```
 
 ```{r}
@@ -15,6 +15,7 @@ library( sp )          # work with shapefiles
 library( sf )          # work with shapefiles - simple features format
 library( mclust )      # cluster analysis 
 library( tmap )        # theme maps
+library( ggmap )       # map tiles 
 library( ggplot2 )     # graphing 
 library( ggthemes )    # nice formats for ggplots
 library( dplyr )       # data wrangling 
@@ -28,12 +29,79 @@ library(here)
 ```
 
 
+
+```{r}
+### HELPER FUNCTIONS FOR LAYOUT
+
+theme_bare <- theme(
+  axis.line = element_blank(), 
+  axis.text.x = element_blank(), 
+  axis.text.y = element_blank(),
+  axis.ticks = element_blank(), 
+  axis.title.x = element_blank(), 
+  axis.title.y = element_blank(),
+  legend.text=element_text(size=7),
+  legend.title=element_text(size=8),
+  panel.background = element_blank(),
+  panel.border = element_rect(colour = "gray", fill=NA, size=0.5)
+)
+
+
+# Multiple plot function
+# http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)/
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+```
+
 ```{r}
 here()
 ```
 
 
-```{r}
+```{r, results='hide'}
 census_api_key( "b431c35dad89e2863681311677d12581e8f24c24" )
 
 crosswalk <- readRDS(here("data/data-raw/cbsa-crosswalk.rds") ) 
@@ -46,24 +114,32 @@ state.fips <- substr( these.fips, 1, 2 )
 county.fips <- substr( these.fips, 3, 5 )
 
 seattle.pop <-
-  get_acs( geography = "tract", variables = "B01003_001", state = "53", county = county.fips[state.fips=="53"], geometry = TRUE ) %>%
+  get_acs( geography = "tract", 
+           variables = "B01003_001", 
+           state = "53", 
+           county = county.fips[state.fips=="53"], 
+           geometry = TRUE ) %>%
   select( GEOID, estimate ) %>%
   rename( POP = estimate )
 
 ```
 
-```{r}
 
-census.dat <- read.csv( here("data/data-raw/LTDB_Std_2010_fullcount.csv" ))
+
+```{r}
+census.dat <- read.csv( here("data/data-raw/LTDB_Std_2010_fullcount.csv") )
 
 # merge shapefile data with census data in new dataframe
 seattle <- merge( seattle.pop, census.dat, by.x="GEOID", by.y="tractid" )
 seattle2 <- seattle[ ! st_is_empty( seattle ) , ]
 seattle.sp <- as_Spatial( seattle2 )
-class( seattle.sp )
+# class( seattle.sp )
 
 plot(seattle.sp)
 ```
+
+## Map Tiles
+
 
 ```{r}
 # project map and remove empty tracts
@@ -75,10 +151,167 @@ seattle <- seattle[ seattle$POP != 0 & (! is.na( seattle$POP )) , ]
 seattle$pop.w <- seattle$POP / 9000 # max(msp.sp$POP)   # standardizes it to max of 1.5
 seattle_dorling <- cartogram_dorling( x=seattle, weight="pop.w", k=0.05 )
 plot( seattle_dorling )
+
+dorling.map <- spTransform( seattle_dorling, CRS("+proj=longlat +datum=WGS84") )
+plot( dorling.map )
+
+class( dorling.map )
+
+dorling.sf <-  as( dorling.map, "sf" )
+class( dorling.sf )
+
+### CREATE BOUNDING BOX
+
+sf::st_crs( dorling.sf ) # already in WGS84
+# seattle <- sf::st_transform( seattle, crs = 4326 ) # WGS84 is crs 4326
+
+sf::st_bbox( dorling.sf )
+
+# needs names left, top, right, left for ggmap
+bbox <- sf::st_bbox( dorling.sf )
+names(bbox) <- c("left","bottom","right","top")
+
+
+
+
+### GET MAP TILES
+
+seattle_stamen <- ggmap::get_stamenmap( bbox=bbox, maptype="toner-lite", zoom=10 )
+ggmap( seattle_stamen )
+
+
+
 ```
 
 
-```{r}
+## Choropleth Maps
+
+```{r, fig.width=10, fig.height=16}
+### CHOROPLETH MAP
+
+seattle_sf <- dorling.sf
+
+pop.quant <- quantile( seattle_sf$POP, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sf <- mutate( seattle_sf, pop.cat = cut( POP, breaks=pop.quant, labels=labels ) ) 
+
+
+seattle.sp <- spTransform( seattle.sp, CRS("+proj=longlat +datum=WGS84") )
+seattle_sp <- dorling.sf <-  as( seattle.sp, "sf" )
+
+pop.quant <- quantile( seattle_sp$POP, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sp <- mutate( seattle_sp, pop.cat = cut( POP, breaks=pop.quant, labels=labels ) ) 
+
+ggplot( seattle_sf ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+ggplot( seattle_sp ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+
+### CHOROPLETH MAP WITH BACKGROUND TILES
+
+
+# single map
+
+ggmap( seattle_stamen, extent="device" ) +
+    geom_sf( data=seattle_sf, col="darkorange4", alpha=0.5, inherit.aes = FALSE ) +
+    # geom_sf( data=seattle_sf, aes( fill=pop.cat ), alpha=0.5, inherit.aes = FALSE ) +
+    # scale_fill_brewer( type="seq", palette = "Blues" ) +
+    ggtitle( "Dorling Cartogram" ) +
+    theme_bare
+
+
+
+
+```
+
+
+
+# Demographics
+
+```{r, fig.width=10, fig.height=14}
+# multiple maps together
+
+map1 <-
+    ggmap( seattle_stamen ) +
+    geom_sf( data=seattle_sp, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+    scale_fill_brewer( type="seq", palette = "Purples" ) +
+    ggtitle( "MAP1 Regular" ) +
+    theme_bare
+
+map2 <-
+    ggmap( seattle_stamen ) +
+    geom_sf( data=seattle_sf, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+    scale_fill_brewer( type="seq", palette = "Purples" ) +
+    ggtitle( "MAP1 Dorling" ) +
+    theme_bare
+
+map3 <-
+    ggmap( seattle_stamen ) +
+    geom_sf( data=seattle_sp, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+    scale_fill_brewer( type="seq", palette = "Oranges" ) +
+    ggtitle( "MAP2 Regular" ) +
+    theme_bare
+
+map4 <-
+    ggmap( seattle_stamen, extent="device" ) +
+    geom_sf( data=seattle_sf, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+    scale_fill_brewer( type="seq", palette = "Oranges" ) +
+    ggtitle( "MAP2 Dorling" ) +
+    theme_bare
+
+
+multiplot( map1, map3, map2, map4, cols=2 )
+```
+
+
+
+### Color Options 
+
+```{r, eval=T}
+# multiple maps together
+
+map1 <-
+    ggmap( seattle_stamen ) +
+    geom_sf( data=seattle_sp, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+    scale_fill_brewer( type="seq", palette = "Greens" ) +
+    ggtitle( "MAP1" ) +
+    theme_bare
+
+map2 <-
+    ggmap( seattle_stamen ) +
+    geom_sf( data=seattle_sf, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+    scale_fill_brewer( type="seq", palette = "Purples" ) +
+    ggtitle( "MAP2" ) +
+    theme_bare
+
+map3 <-
+    ggmap( seattle_stamen ) +
+    geom_sf( data=seattle_sp, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+    scale_fill_brewer( type="seq", palette = "Oranges" ) +
+    ggtitle( "MAP3" ) +
+    theme_bare
+
+map4 <-
+    ggmap( seattle_stamen, extent="device" ) +
+    geom_sf( data=seattle_sf, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+    scale_fill_brewer( type="seq", palette = "Blues" ) +
+    ggtitle( "BLUES" ) +
+    theme_bare
+
+
+multiplot( map1, map3, map2, map4, cols=2 )
+```
+
+
+
+# Create Dorling Function for Metros
+
+```{r, eval=F}
 
 
 # folder should be where RMD file is
@@ -205,6 +438,14 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 
 
 
+
+```
+
+
+
+# Loop Over Metros 
+
+```{r, eval=F}
 crosswalk <- read.csv( "https://raw.githubusercontent.com/DS4PS/cpp-529-master/master/data/cbsatocountycrosswalk.csv",  stringsAsFactors=F, colClasses="character" )
 
 metro.areas <- unique( crosswalk$cbsaname )
