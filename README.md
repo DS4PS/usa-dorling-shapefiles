@@ -15,7 +15,7 @@ Jesse Lecy: Lecy
 
 [About Us]()
 
-[Reference Catalog] (https://github.com/DS4PS/usa-dorling-shapefiles/blob/master/code/usa-dorling-shapefiles-code.rmd)
+[Reference Catalog](https://github.com/DS4PS/usa-dorling-shapefiles/blob/master/code/usa-dorling-shapefiles-code.rmd)
 
 [Replication Instructions](https://github.com/DS4PS/usa-dorling-shapefiles/blob/master/code/draft-functions.R)
 
