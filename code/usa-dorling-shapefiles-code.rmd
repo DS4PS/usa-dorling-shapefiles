@@ -307,16 +307,288 @@ map4 <-
 multiplot( map1, map3, map2, map4, cols=2 )
 ```
 
+## Census Variables with Seattle Map 
+```{r}
+
+d1 <- seattle.sp@data
+
+
+keep.these <- c("family10", "vac10",  "agewht10",  "own10" )
+
+d2 <- select( d1, keep.these )
+d3 <- apply( d2, 2, scale, )
+
+head( d3[,1:4] ) %>% pander()
+
+d3 <- as.data.frame(d3)
+```
+
+## Map Tiles own10 
+
+```{r}
+
+### CHOROPLETH MAP
+
+seattle_sf <- dorling.sf
+
+pop.quant <- quantile( seattle_sf$own10, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sf <- mutate( seattle_sf, pop.cat = cut( own10, breaks=pop.quant, labels=labels ) ) 
+
+
+seattle.sp <- spTransform( seattle.sp, CRS("+proj=longlat +datum=WGS84") )
+seattle_sp <- dorling.sf <-  as( seattle.sp, "sf" )
+
+pop.quant <- quantile( seattle_sp$own10, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sp <- mutate( seattle_sp, pop.cat = cut( own10, breaks=pop.quant, labels=labels ) ) 
+
+ggplot( seattle_sf ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+ggplot( seattle_sp ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+
+### CHOROPLETH MAP WITH BACKGROUND TILES
+
+
+# single map
+
+ggmap( seattle_stamen, extent="device" ) +
+    geom_sf( data=seattle_sf, col="darkorange4", alpha=0.5, inherit.aes = FALSE ) +
+    # geom_sf( data=seattle_sf, aes( fill=pop.cat ), alpha=0.5, inherit.aes = FALSE ) +
+    # scale_fill_brewer( type="seq", palette = "Blues" ) +
+    ggtitle( "Dorling Cartogram" ) +
+    theme_bare
+
+```
+
+## Map Tiles vac10
+
+```{r}
+# project map and remove empty tracts
+seattle <- spTransform( seattle.sp, CRS("+init=epsg:3395"))
+seattle <- seattle[ seattle$vac10 != 0 & (! is.na( seattle$vac10 )) , ]
+
+# convert census tract polygons to dorling cartogram
+# no idea why k=0.03 works, but it does - default is k=5
+seattle$pop.w <- seattle$vac10 / 9000 # max(msp.sp$POP)   # standardizes it to max of 1.5
+seattle_dorling <- cartogram_dorling( x=seattle, weight="pop.w", k=0.05 )
+
+dorling.map <- spTransform( seattle_dorling, CRS("+proj=longlat +datum=WGS84") )
+
+class( dorling.map )
+
+dorling.sf <-  as( dorling.map, "sf" )
+class( dorling.sf )
+
+### CREATE BOUNDING BOX
+
+sf::st_crs( dorling.sf ) # already in WGS84
+# seattle <- sf::st_transform( seattle, crs = 4326 ) # WGS84 is crs 4326
+
+sf::st_bbox( dorling.sf )
+
+# needs names left, top, right, left for ggmap
+bbox <- sf::st_bbox( dorling.sf )
+names(bbox) <- c("left","bottom","right","top")
+
+### GET MAP TILES
+
+seattle_stamen <- ggmap::get_stamenmap( bbox=bbox, maptype="toner-lite", zoom=10 )
+
+### CHOROPLETH MAP
+
+seattle_sf <- dorling.sf
+
+pop.quant <- quantile( seattle_sf$vac10, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sf <- mutate( seattle_sf, pop.cat = cut( vac10, breaks=pop.quant, labels=labels ) ) 
+
+
+seattle.sp <- spTransform( seattle.sp, CRS("+proj=longlat +datum=WGS84") )
+seattle_sp <- dorling.sf <-  as( seattle.sp, "sf" )
+
+pop.quant <- quantile( seattle_sp$vac10, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sp <- mutate( seattle_sp, pop.cat = cut( vac10, breaks=pop.quant, labels=labels ) ) 
+
+ggplot( seattle_sf ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+ggplot( seattle_sp ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+### CHOROPLETH MAP WITH BACKGROUND TILES
+
+# single map
+
+ggmap( seattle_stamen, extent="device" ) +
+    geom_sf( data=seattle_sf, col="darkorange4", alpha=0.5, inherit.aes = FALSE ) +
+    # geom_sf( data=seattle_sf, aes( fill=pop.cat ), alpha=0.5, inherit.aes = FALSE ) +
+    # scale_fill_brewer( type="seq", palette = "Blues" ) +
+    ggtitle( "Dorling Cartogram" ) +
+    theme_bare
+
+```
+
+## Map Tiles agewht10 
+
+```{r}
+# project map and remove empty tracts
+seattle <- spTransform( seattle.sp, CRS("+init=epsg:3395"))
+seattle <- seattle[ seattle$agewht10  != 0 & (! is.na( seattle$agewht10)) , ]
+
+# convert census tract polygons to dorling cartogram
+# no idea why k=0.03 works, but it does - default is k=5
+seattle$pop.w <- seattle$agewht10  / 9000 # max(msp.sp$POP)   # standardizes it to max of 1.5
+seattle_dorling <- cartogram_dorling( x=seattle, weight="pop.w", k=0.05 )
+
+dorling.map <- spTransform( seattle_dorling, CRS("+proj=longlat +datum=WGS84") )
+
+class( dorling.map )
+
+dorling.sf <-  as( dorling.map, "sf" )
+class( dorling.sf )
+
+### CREATE BOUNDING BOX
+
+sf::st_crs( dorling.sf ) # already in WGS84
+# seattle <- sf::st_transform( seattle, crs = 4326 ) # WGS84 is crs 4326
+
+sf::st_bbox( dorling.sf )
+
+# needs names left, top, right, left for ggmap
+bbox <- sf::st_bbox( dorling.sf )
+names(bbox) <- c("left","bottom","right","top")
+
+### GET MAP TILES
+
+seattle_stamen <- ggmap::get_stamenmap( bbox=bbox, maptype="toner-lite", zoom=10 )
+
+### CHOROPLETH MAP
+
+seattle_sf <- dorling.sf
+
+pop.quant <- quantile( seattle_sf$agewht10, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sf <- mutate( seattle_sf, pop.cat = cut( agewht10, breaks=pop.quant, labels=labels ) ) 
+
+
+seattle.sp <- spTransform( seattle.sp, CRS("+proj=longlat +datum=WGS84") )
+seattle_sp <- dorling.sf <-  as( seattle.sp, "sf" )
+
+pop.quant <- quantile( seattle_sp$agewht10, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sp <- mutate( seattle_sp, pop.cat = cut( agewht10, breaks=pop.quant, labels=labels ) ) 
+
+ggplot( seattle_sf ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+ggplot( seattle_sp ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+### CHOROPLETH MAP WITH BACKGROUND TILES
+
+# single map
+
+ggmap( seattle_stamen, extent="device" ) +
+    geom_sf( data=seattle_sf, col="darkorange4", alpha=0.5, inherit.aes = FALSE ) +
+    # geom_sf( data=seattle_sf, aes( fill=pop.cat ), alpha=0.5, inherit.aes = FALSE ) +
+    # scale_fill_brewer( type="seq", palette = "Blues" ) +
+    ggtitle( "Dorling Cartogram" ) +
+    theme_bare
+```
+
+
+## Map Tiles family10 
+
+```{r}
+
+# project map and remove empty tracts
+seattle <- spTransform( seattle.sp, CRS("+init=epsg:3395"))
+seattle <- seattle[ seattle$family10 != 0 & (! is.na( seattle$family10 )) , ]
+
+# convert census tract polygons to dorling cartogram
+# no idea why k=0.03 works, but it does - default is k=5
+seattle$pop.w <- seattle$family10  / 9000 # max(msp.sp$POP)   # standardizes it to max of 1.5
+seattle_dorling <- cartogram_dorling( x=seattle, weight="pop.w", k=0.05 )
+
+dorling.map <- spTransform( seattle_dorling, CRS("+proj=longlat +datum=WGS84") )
+
+class( dorling.map )
+
+dorling.sf <-  as( dorling.map, "sf" )
+class( dorling.sf )
+
+### CREATE BOUNDING BOX
+
+sf::st_crs( dorling.sf ) # already in WGS84
+# seattle <- sf::st_transform( seattle, crs = 4326 ) # WGS84 is crs 4326
+
+sf::st_bbox( dorling.sf )
+
+# needs names left, top, right, left for ggmap
+bbox <- sf::st_bbox( dorling.sf )
+names(bbox) <- c("left","bottom","right","top")
+
+### GET MAP TILES
+
+seattle_stamen <- ggmap::get_stamenmap( bbox=bbox, maptype="toner-lite", zoom=10 )
+
+### CHOROPLETH MAP
+
+seattle_sf <- dorling.sf
+
+pop.quant <- quantile( seattle_sf$family10, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sf <- mutate( seattle_sf, pop.cat = cut( family10, breaks=pop.quant, labels=labels ) ) 
+
+
+seattle.sp <- spTransform( seattle.sp, CRS("+proj=longlat +datum=WGS84") )
+seattle_sp <- dorling.sf <-  as( seattle.sp, "sf" )
+
+pop.quant <- quantile( seattle_sp$family10, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+seattle_sp <- mutate( seattle_sp, pop.cat = cut( family10, breaks=pop.quant, labels=labels ) ) 
+
+ggplot( seattle_sf ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+ggplot( seattle_sp ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+### CHOROPLETH MAP WITH BACKGROUND TILES
+
+# single map
+
+ggmap( seattle_stamen, extent="device" ) +
+    geom_sf( data=seattle_sf, col="darkorange4", alpha=0.5, inherit.aes = FALSE ) +
+    # geom_sf( data=seattle_sf, aes( fill=pop.cat ), alpha=0.5, inherit.aes = FALSE ) +
+    # scale_fill_brewer( type="seq", palette = "Blues" ) +
+    ggtitle( "Dorling Cartogram" ) +
+    theme_bare
+
+```
+
 
 
 # Create Dorling Function for Metros
 
 ```{r, eval=F}
 
-
 # folder should be where RMD file is
 # "C:/Users/jdlecy/Dropbox/00 - PEDA/00 - GITHUB/usa-dorling-shapefiles"
-setwd( "usa-dorling-shapefiles/code" )
+#setwd( "usa-dorling-shapefiles/code" )
 
 # load data
 census_api_key( "b431c35dad89e2863681311677d12581e8f24c24" )
@@ -417,6 +689,62 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 
 	geojson_write( metro.j, file=file.name, geometry="polygon" )
 
+	#create base maps 
+	
+	dorling.sf <-  as( dorling.map, "sf" )
+class( dorling.sf )
+
+	sf::st_crs( dorling.sf ) # already in WGS84
+
+sf::st_bbox( dorling.sf )
+
+# needs names left, top, right, left for ggmap
+bbox <- sf::st_bbox( dorling.sf )
+names(bbox) <- c("left","bottom","right","top")
+
+metro_stamen <- ggmap::get_stamenmap( bbox=bbox, maptype="toner-lite", zoom=10 )
+ggmap( metro_stamen )
+
+
+### CHOROPLETH MAP
+
+metro_sf <- dorling.sf
+
+pop.quant <- quantile( metro_sf$POP, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+metro_sf <- mutate( metro_sf, pop.cat = cut( POP, breaks=pop.quant, labels=labels ) ) 
+
+
+d.sp <- spTransform( d.sp, CRS("+proj=longlat +datum=WGS84") )
+d_sp <- dorling.sf <-  as( d.sp, "sf" )
+
+pop.quant <- quantile( d_sp$POP, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+d_sp <- mutate( d_sp, pop.cat = cut( POP, breaks=pop.quant, labels=labels ) ) 
+
+ggplot( metro_sf ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+ggplot( metro_sp ) + 
+    geom_sf( aes( fill=pop.cat ) ) +
+    scale_fill_brewer( palette = "OrRd" ) 
+
+
+	 
+# plot the base maps in the loop? 
+
+metro_maps <- 
+    ggmap( metro_stamen ) +
+    geom_sf( data=metro_sp, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+    scale_fill_brewer( type="seq", palette = "Purples" ) +
+    ggtitle( "Dorling Shapefile of \n" ) +
+    theme_bare
+
+
+plot(metro_maps)
+
+
 	# plot the maps 
 	if( include.plot )
 	{
@@ -424,8 +752,10 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 	  plot( d.sp, main=paste0("Census Tracts of \n", cbsa.name ) )
           plot( d.sp, border="gray80", main=paste0("Dorling Cartogram of \n", cbsa.name ) )
 	  plot( dorling.map, col=gray(0.5,0.5), add=TRUE  )
-	}
 
+	  }
+
+	
 	return( dorling.map )
 
 }
@@ -437,10 +767,7 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 # fw <- build_dorling_metro( cbsa.name = fort.worth )
 
 
-
-
 ```
-
 
 
 # Loop Over Metros 
