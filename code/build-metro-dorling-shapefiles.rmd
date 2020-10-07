@@ -1,0 +1,211 @@
+---
+title: "Convert Metro Tract Shapefiles to Dorling Cartograms"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: readable
+    df_print: paged
+    highlight: tango
+    css: clean.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set( echo = TRUE, message=F, warning=F, fig.width=12, fig.height=8 )
+```
+
+
+# R Packages 
+
+```{r}
+library( geojsonio )   # read shapefiles
+library( sp )          # work with shapefiles
+library( sf )          # work with shapefiles - simple features format
+library( dplyr )       # data wrangling 
+library( pander )      # formatting RMD tables
+library( tidycensus )  # download census data + shapefiles
+library( cartogram )   # spatial maps w/ tract size bias reduction
+library( maptools )    # spatial object manipulation 
+```
+
+
+```{r, echo=F}
+census_api_key( "b431c35dad89e2863681311677d12581e8f24c24" )
+options( tigris_use_cache = TRUE )
+```
+
+
+
+# Create Dorling Shapefile for Metro Area
+
+```{r}
+build_dorling <- function( cbsa.name, include.plot=TRUE )
+{
+
+	these.counties  <- crosswalk$cbsaname == cbsa.name
+	these.fips <- crosswalk$fipscounty[ these.counties ]
+	these.fips <- na.omit( these.fips )
+  
+	state.fips <- substr( these.fips, 1, 2 )
+	county.fips <- substr( these.fips, 3, 5 )
+
+	# combine all counties
+	d.sf <- NULL
+
+	for( i in 1:length(these.fips) )
+	{
+	   d.temp <- NULL
+	   
+	   try(  
+
+          d.temp <- 
+	        get_acs( geography = "tract", 
+	           variables = "B01003_001",  # population
+	           state = state.fips[i], 
+	           county = county.fips[i], 
+	           geometry = TRUE ) %>%
+	        select( GEOID, estimate ) %>%
+	        rename( POP = estimate )
+		   
+           ) # end of try
+
+	   d.sf <- rbind( d.sf, d.temp )
+	}
+
+
+	# merge shapefile data with census data in new dataframe:
+	# fix leading zeros problem
+	# census.dat$tractid <- as.numeric( as.character( census.dat$tractid ) )
+	d.sf$GEOID <- as.numeric( as.character( d.sf$GEOID ) )
+	d.sf <- merge( d.sf, census.dat, by.x="GEOID", by.y="tractid", all.x=T )
+
+	# convert sf to sp class
+	d.sf <- d.sf[ ! st_is_empty( d.sf ) , ]
+	d.sp <- as_Spatial( d.sf )
+
+	# project map and remove empty tracts
+	d.sp <- spTransform( d.sp, CRS("+proj=longlat +datum=WGS84") )
+	d.sp  <- d.sp[ d.sp$POP != 0 & (! is.na( d.sp$POP )) , ]
+
+	# save simple features shapefile as geojson
+	metro.name <- tolower( cbsa.name )
+	metro.name <- gsub( ",", "", metro.name )
+	metro.name <- gsub( " ", "-", metro.name )
+	file.name <- paste0( "../maps/metros-shapefile/", metro.name, "-sf.geojson" )
+	geojson_write( d.sp, file=file.name, geometry="polygon" )
+
+	# class( d.sp )
+	# plot( d.sp)
+
+	# project map and remove empty tracts
+	# d.sp <- spTransform( d.sp, CRS("+init=epsg:3395") )
+	# d.sp  <- d.sp[ d.sp$POP != 0 & (! is.na( d.sp$POP )) , ]
+
+	# standardizes pop numbers for scaling
+	d.sp$pop.w <- d.sp$POP / ( 2 * median(d.sp$POP) ) 
+	total.pop <- sum( d.sp$POP, na.rm=T )
+  # k.scale <-  0.7 * ( 1 / ( log( total.pop ) - 10 ) ) 
+	k.scale <-   ( 0.34 / ( log10( total.pop ) - 4.4 ) ) - ( 0.6 / log10( total.pop ) ) 
+        
+	# convert census tract polygons to dorling cartogram
+  d.sp <- spTransform( d.sp, CRS("+init=epsg:3395") )
+	dorling.map <- cartogram_dorling( x=d.sp, weight="pop.w", k=k.scale )  # k=0.05
+
+	# convert to WGS84 for GitHub capatability 
+	metro.j <- spTransform( dorling.map, CRS("+proj=longlat +datum=WGS84") )
+
+	# save dorling shapefile as geojson
+	metro.name <- tolower( cbsa.name )
+	metro.name <- gsub( ",", "", metro.name )
+	metro.name <- gsub( " ", "-", metro.name )
+	file.name <- paste0( "../maps/metros-dorling/", metro.name, "-dorling-v1.geojson" )
+
+	geojson_write( metro.j, file=file.name, geometry="polygon" )
+
+
+	if( include.plot )
+	{
+	  
+	  par( mar=c(0,0,4,0), mfrow=c(1,2) )
+	  plot( d.sp, main=paste0("Census Tracts of \n", cbsa.name ) )
+    plot( d.sp, border="gray80", main=paste0("Dorling Cartogram of \n", cbsa.name ) )
+	  plot( dorling.map, col=gray(0.5,0.5), add=TRUE  )
+
+	}
+
+	
+	return( dorling.map )
+
+	
+} # END OF build_dorling() FUNCTION 
+```
+
+
+```{r, eval=F}
+# unit tests: 
+
+
+# load data
+census_api_key( "b431c35dad89e2863681311677d12581e8f24c24" )
+crosswalk <- readRDS( "../data/data-raw/cbsa-crosswalk.rds" ) 
+census.dat <- read.csv( "../data/data-raw/LTDB_Std_2010_fullcount.csv" )
+
+# fix leading zeros issue:
+# convert both IDs to numeric so they both 
+# drop the leading zeros
+census.dat$tractid <- as.numeric( as.character( census.dat$tractid ) )
+
+
+fort.worth <- "Fort Worth-Arlington, TX"
+fw <- build_dorling( cbsa.name = fort.worth )
+
+
+seattle <- "Seattle-Bellevue-Everett, WA"
+sea <- build_dorling( cbsa.name = seattle )
+
+phoenix <- "Phoenix-Mesa-Scottsdale, AZ"
+phx <- build_dorling( cbsa.name = phoenix )
+
+lynchburg <- "Lynchburg, VA"
+lburg <- build_dorling( cbsa.name = lynchburg )
+```
+
+
+# Loop Over Metros 
+
+Load data: 
+
+* LTDB Census data 2000-2010 
+* Metro to county crosswalk from NBER 
+
+```{r}
+# URL <- "https://raw.githubusercontent.com/DS4PS/cpp-529-master/master/data/cbsatocountycrosswalk.csv"
+# crosswalk <- read.csv( URL, stringsAsFactors=F, colClasses="character" )
+
+# CENSUS DATA
+# fix leading zeros issue:
+# convert both IDs to numeric so they both 
+# drop the leading zeros
+census.dat <- read.csv( "../data/data-raw/LTDB_Std_2010_fullcount.csv" )
+census.dat$tractid <- as.numeric( as.character( census.dat$tractid ) )
+
+
+# Metro to County Crosswalk
+crosswalk <- readRDS( "../data/data-raw/cbsa-crosswalk.rds" ) 
+metro.areas <- unique( crosswalk$cbsaname )
+metro.areas[ metro.areas == "" ] <- NA
+metro.areas <- na.omit( metro.areas )
+metro.areas <- metro.areas[ 1:379 ]  # drop Puerto Rico metros 
+metro.areas <- sort(metro.areas)
+```
+
+
+Apply the function to each metro area: 
+
+```{r, results="asis"}
+for( j in metro.areas )
+{
+  metro.j <- build_dorling( cbsa.name = j )
+  cat( "<br><hr><br>" )
+}
+```
+

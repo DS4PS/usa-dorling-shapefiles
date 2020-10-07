@@ -308,6 +308,7 @@ multiplot( map1, map3, map2, map4, cols=2 )
 ```
 
 ## Census Variables with Seattle Map 
+
 ```{r}
 
 d1 <- seattle.sp@data
@@ -615,7 +616,9 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 	these.counties  <- crosswalk$cbsaname == cbsa.name
 	these.fips <- crosswalk$fipscounty[ these.counties ]
 	these.fips <- na.omit( these.fips )
-
+  print( these.fips )
+  
+  
 	state.fips <- substr( these.fips, 1, 2 )
 	county.fips <- substr( these.fips, 3, 5 )
 
@@ -624,9 +627,11 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 
 	for( i in 1:length(these.fips) )
 	{
+	   d.temp <- NULL
+	   
 	   try(  
 
-                d.temp <- 
+          d.temp <- 
 	        get_acs( geography = "tract", 
 	           variables = "B01003_001",  # population
 	           state = state.fips[i], 
@@ -672,10 +677,11 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 	# standardizes pop numbers for scaling
 	d.sp$pop.w <- d.sp$POP / ( 2 * median(d.sp$POP) ) 
 	total.pop <- sum( d.sp$POP, na.rm=T )
-        k.scale <-  0.7 * ( 1 / ( log( total.pop ) - 10 ) ) 
+  # k.scale <-  0.7 * ( 1 / ( log( total.pop ) - 10 ) ) 
+	k.scale <-   ( 0.34 / ( log10( total.pop ) - 4.4 ) ) - ( 0.6 / log10( total.pop ) ) 
         
 	# convert census tract polygons to dorling cartogram
-        d.sp <- spTransform( d.sp, CRS("+init=epsg:3395") )
+  d.sp <- spTransform( d.sp, CRS("+init=epsg:3395") )
 	dorling.map <- cartogram_dorling( x=d.sp, weight="pop.w", k=k.scale )  # k=0.05
 
 	# convert to WGS84 for GitHub capatability 
@@ -685,65 +691,67 @@ build_dorling_metro <- function( cbsa.name, include.plot=TRUE )
 	metro.name <- tolower( cbsa.name )
 	metro.name <- gsub( ",", "", metro.name )
 	metro.name <- gsub( " ", "-", metro.name )
-	file.name <- paste0( "../maps/metros-dorling/", metro.name, "-dorling.geojson" )
+	file.name <- paste0( "../maps/metros-dorling/", metro.name, "-dorling-v1.geojson" )
 
 	geojson_write( metro.j, file=file.name, geometry="polygon" )
 
+	
+	
+	#######################################################
 	#create base maps 
 	
-	dorling.sf <-  as( dorling.map, "sf" )
-class( dorling.sf )
-
-	sf::st_crs( dorling.sf ) # already in WGS84
-
-sf::st_bbox( dorling.sf )
-
-# needs names left, top, right, left for ggmap
-bbox <- sf::st_bbox( dorling.sf )
-names(bbox) <- c("left","bottom","right","top")
-
-metro_stamen <- ggmap::get_stamenmap( bbox=bbox, maptype="toner-lite", zoom=10 )
-ggmap( metro_stamen )
-
-
-### CHOROPLETH MAP
-
-metro_sf <- dorling.sf
-
-pop.quant <- quantile( metro_sf$POP, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
-labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
-metro_sf <- mutate( metro_sf, pop.cat = cut( POP, breaks=pop.quant, labels=labels ) ) 
-
-
-d.sp <- spTransform( d.sp, CRS("+proj=longlat +datum=WGS84") )
-d_sp <- dorling.sf <-  as( d.sp, "sf" )
-
-pop.quant <- quantile( d_sp$POP, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
-labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
-d_sp <- mutate( d_sp, pop.cat = cut( POP, breaks=pop.quant, labels=labels ) ) 
-
-ggplot( metro_sf ) + 
-    geom_sf( aes( fill=pop.cat ) ) +
-    scale_fill_brewer( palette = "OrRd" ) 
-
-ggplot( metro_sp ) + 
-    geom_sf( aes( fill=pop.cat ) ) +
-    scale_fill_brewer( palette = "OrRd" ) 
-
-
-	 
-# plot the base maps in the loop? 
-
-metro_maps <- 
-    ggmap( metro_stamen ) +
-    geom_sf( data=metro_sp, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
-    scale_fill_brewer( type="seq", palette = "Purples" ) +
-    ggtitle( "Dorling Shapefile of \n" ) +
-    theme_bare
-
-
-plot(metro_maps)
-
+# 	dorling.sf <-  as( dorling.map, "sf" )
+#   class( dorling.sf )
+# 
+# 	sf::st_crs( dorling.sf ) # already in WGS84
+#   sf::st_bbox( dorling.sf )
+# 
+#   # needs names left, top, right, left for ggmap
+#   bbox <- sf::st_bbox( dorling.sf )
+#   names(bbox) <- c("left","bottom","right","top")
+# 
+#   metro_stamen <- ggmap::get_stamenmap( bbox=bbox, maptype="toner-lite", zoom=10 )
+#   ggmap( metro_stamen )
+# 
+# 
+#   ### CHOROPLETH MAP
+# 
+#   metro_sf <- dorling.sf
+# 
+#   pop.quant <- quantile( metro_sf$POP, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+#   labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+#   metro_sf <- mutate( metro_sf, pop.cat = cut( POP, breaks=pop.quant, labels=labels ) ) 
+# 
+# 
+#   d.sp <- spTransform( d.sp, CRS("+proj=longlat +datum=WGS84") )
+#   d_sp <- dorling.sf <-  as( d.sp, "sf" )
+# 
+#   pop.quant <- quantile( d_sp$POP, c(0,0.2,0.4,0.6,0.8,1) ) %>% round(0)
+#   labels <- paste0( pop.quant[-length(pop.quant)], "-", pop.quant[-1] )
+#   d_sp <- mutate( d_sp, pop.cat = cut( POP, breaks=pop.quant, labels=labels ) ) 
+# 
+#   ggplot( metro_sf ) + 
+#     geom_sf( aes( fill=pop.cat ) ) +
+#     scale_fill_brewer( palette = "OrRd" ) 
+# 
+#   ggplot( metro_sp ) + 
+#     geom_sf( aes( fill=pop.cat ) ) +
+#     scale_fill_brewer( palette = "OrRd" ) 
+# 
+# 
+# 	 
+#   # plot the base maps in the loop? 
+# 
+#   metro_maps <- 
+#     ggmap( metro_stamen ) +
+#     geom_sf( data=metro_sp, aes( fill=pop.cat), alpha=0.5, inherit.aes = FALSE ) +
+#     scale_fill_brewer( type="seq", palette = "Purples" ) +
+#     ggtitle( "Dorling Shapefile of \n" ) +
+#     theme_bare
+# 
+# 
+#   plot(metro_maps)
+  #######################################################
 
 	# plot the maps 
 	if( include.plot )
@@ -753,20 +761,43 @@ plot(metro_maps)
           plot( d.sp, border="gray80", main=paste0("Dorling Cartogram of \n", cbsa.name ) )
 	  plot( dorling.map, col=gray(0.5,0.5), add=TRUE  )
 
-	  }
+	}
 
 	
 	return( dorling.map )
 
 }
 
+```
 
 
-# test the function: 
-# fort.worth <- "Fort Worth-Arlington, TX"
-# fw <- build_dorling_metro( cbsa.name = fort.worth )
+```{r, eval=F}
+# unit test: 
+
+fort.worth <- "Fort Worth-Arlington, TX"
+fw <- build_dorling_metro( cbsa.name = fort.worth )
 
 
+seattle <- "Seattle-Bellevue-Everett, WA"
+sea <- build_dorling_metro( cbsa.name = seattle )
+
+phoenix <- "Phoenix-Mesa-Scottsdale, AZ"
+phx <- build_dorling_metro( cbsa.name = phoenix )
+
+lynchburg <- "Lynchburg, VA"
+lburg <- build_dorling_metro( cbsa.name = lynchburg )
+
+
+# "51009" "51011" "51019" "51031" "51515" "51680"
+
+#           d.temp <- 
+# 	        get_acs( geography = "tract", 
+# 	           variables = "B01003_001",  # population
+# 	           state = "51", 
+# 	           county = "515", 
+# 	           geometry = TRUE ) %>%
+# 	        select( GEOID, estimate ) %>%
+# 	        rename( POP = estimate )
 ```
 
 
