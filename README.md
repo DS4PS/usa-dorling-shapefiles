@@ -30,9 +30,9 @@ plot( phx )
 
 # Contributors 
 
-Jesse Lecy: lecy
-Melia Petersen: meliapetersen  
-Jaesa Rogers: jaesar 
+Jesse Lecy: lecy  
+Melia Petersen: meliapetersen   
+Jaesa Rogers: jaesar  
 
 
 
